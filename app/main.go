@@ -12,7 +12,7 @@ func main() {
 
 	for {
 		command := ""
-		fmt.Printf("$")
+		fmt.Printf("$ ")
 		fmt.Scanf("%s", &command)
 		fmt.Printf("%s: command not found\n", command)
 	}
