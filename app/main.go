@@ -9,8 +9,11 @@ var _ = fmt.Print
 
 func main() {
 	// TODO: Uncomment the code below to pass the first stage
-	command := ""
-	fmt.Print("$ ")
-	fmt.Scanf("%s", &command)
-	fmt.Printf("%s: command not found", command)
+
+	for {
+		command := ""
+		fmt.Printf("$")
+		fmt.Scanf("%s", &command)
+		fmt.Printf("%s: command not found\n", command)
+	}
 }
