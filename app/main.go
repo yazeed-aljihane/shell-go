@@ -12,5 +12,5 @@ func main() {
 	command := ""
 	fmt.Print("$ ")
 	fmt.Scanf("%s", &command)
-	fmt.Printf("{%s}: command not found", command)
+	fmt.Printf("%s: command not found", command)
 }
