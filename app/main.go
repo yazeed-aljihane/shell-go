@@ -14,6 +14,10 @@ func main() {
 		command := ""
 		fmt.Printf("$ ")
 		fmt.Scanf("%s", &command)
-		fmt.Printf("%s: command not found\n", command)
+		if command == "exit" {
+			break
+		} else {
+			fmt.Printf("%s: command not found\n", command)
+		}
 	}
 }
