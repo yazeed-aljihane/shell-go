@@ -47,7 +47,7 @@ func main() {
 						continue
 					}
 					if !fileInfo.IsDir() && fileInfo.Mode().Perm()&0o111 != 0 {
-						fmt.Printf("%s is %s\n", args[1], dirs[i])
+						fmt.Printf("%s is %s\n", args[1], filePath)
 						check = 1
 						break
 					}
