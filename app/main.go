@@ -29,6 +29,16 @@ func main() {
 				fmt.Printf("%s ", args[i])
 			}
 			fmt.Printf("\n")
+		} else if args[0] == "type" {
+			if len(args) <= 1 || len(args) > 2 {
+				fmt.Printf("wrong use to type command\n")
+				continue
+			}
+			if args[1] == "echo" || args[1] == "type" || args[1] == "exit" {
+				fmt.Printf("%s is a shell builtin\n", args[1])
+			} else {
+				fmt.Printf("%s: not found\n", args[1])
+			}
 		} else {
 			fmt.Printf("%s: command not found\n", args[0])
 		}
