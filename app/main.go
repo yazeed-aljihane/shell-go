@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -58,8 +60,16 @@ func main() {
 
 			}
 		} else {
-			fmt.Printf("%s: command not found\n", args[0])
+			cmd := exec.Command(args[0], args[1:]...)
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			err := cmd.Run()
+			if errors.Is(err, exec.ErrNotFound) {
+				fmt.Printf("%s: command not found\n", args[0])
+			} else if err != nil {
+				fmt.Fprintln(os.Stderr, err)
+			}
 		}
-
 	}
 }
