@@ -37,7 +37,7 @@ func main() {
 				fmt.Printf("wrong use to type command\n")
 				continue
 			}
-			if args[1] == "echo" || args[1] == "type" || args[1] == "exit" {
+			if args[1] == "echo" || args[1] == "type" || args[1] == "exit" || args[1] == "pwd" {
 				fmt.Printf("%s is a shell builtin\n", args[1])
 			} else {
 				dirs := filepath.SplitList(os.Getenv("PATH"))
@@ -59,6 +59,13 @@ func main() {
 				}
 
 			}
+		} else if args[0] == "pwd" {
+			crdir, err := os.Getwd()
+			if err != nil {
+				fmt.Printf("%v\n", err)
+			}
+			fmt.Printf("%s\n", crdir)
+
 		} else {
 			cmd := exec.Command(args[0], args[1:]...)
 			cmd.Stdin = os.Stdin
