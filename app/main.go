@@ -69,7 +69,7 @@ func main() {
 		} else if args[0] == "cd" {
 			_, err := os.Stat(args[1])
 			if err != nil {
-				fmt.Printf("cd: %s: No such file or directory", args[1])
+				fmt.Printf("cd: %s: No such file or directory\n", args[1])
 			} else {
 				os.Chdir(args[1])
 			}
