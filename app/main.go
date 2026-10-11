@@ -25,20 +25,37 @@ func main() {
 		args := []string{}
 		fullText := scanner.Text()
 		tempArg := ""
-		check := 0
+		checkone := 0
+		checktwo := 0
 		start := 0
 		for i := 0; i < len(fullText); i++ {
-			if fullText[i] == '\'' && check == 0 {
-				check = 1
+			if fullText[i] == '\'' && checkone == 0 && checktwo == 0 {
+				checkone = 1
 				start = 1
 				continue
 			}
-			if fullText[i] == '\'' && check == 1 {
-				check = 0
+			if fullText[i] == '"' && checktwo == 0 && checkone == 0 {
+				checktwo = 1
+				start = 1
 				continue
 			}
 
-			if check == 1 {
+			if fullText[i] == '\'' && checkone == 1 && checktwo == 0 {
+				checkone = 0
+				continue
+			}
+
+			if fullText[i] == '"' && checktwo == 1 && checkone == 0 {
+				checktwo = 0
+				continue
+			}
+
+			if checktwo == 1 {
+				tempArg += fullText[i : i+1]
+				continue
+			}
+
+			if checkone == 1 {
 				tempArg += fullText[i : i+1]
 				continue
 			}
@@ -49,7 +66,7 @@ func main() {
 				tempArg += fullText[i : i+1]
 				start = 1
 			}
-			if check == 0 && (fullText[i] == ' ' || fullText[i] == '	') && start == 1 {
+			if checkone == 0 && (fullText[i] == ' ' || fullText[i] == '	') && start == 1 {
 				args = append(args, tempArg)
 				tempArg = ""
 				start = 0
