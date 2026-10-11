@@ -38,7 +38,7 @@ func main() {
 				continue
 			}
 
-			if fullText[i] == '\\' && checkone == 0 && checktwo == 0 {
+			if fullText[i] == '\\' && checkone == 0 {
 				backslash = 1
 				continue
 			}
