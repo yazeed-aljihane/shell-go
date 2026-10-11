@@ -4,10 +4,10 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 )
 
 // Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
@@ -21,7 +21,45 @@ func main() {
 		if !scanner.Scan() {
 			break
 		}
-		args := strings.Fields(scanner.Text())
+
+		args := []string{}
+		fullText := scanner.Text()
+		tempArg := ""
+		check := 0
+		start := 0
+		for i := 0; i < len(fullText); i++ {
+			if fullText[i] == '\'' && check == 0 {
+				check = 1
+				start = 1
+				continue
+			}
+			if fullText[i] == '\'' && check == 1 {
+				check = 0
+				continue
+			}
+
+			if check == 1 {
+				tempArg += fullText[i : i+1]
+				continue
+			}
+			if (fullText[i] == ' ' || fullText[i] == '	') && start == 0 {
+				continue
+			}
+			if fullText[i] != ' ' && fullText[i] != '	' {
+				tempArg += fullText[i : i+1]
+				start = 1
+			}
+			if check == 0 && (fullText[i] == ' ' || fullText[i] == '	') && start == 1 {
+				args = append(args, tempArg)
+				tempArg = ""
+				start = 0
+				continue
+			}
+
+		}
+		if start == 1 {
+			args = append(args, tempArg)
+		}
 		if len(args) == 0 {
 			continue
 		}
@@ -29,6 +67,10 @@ func main() {
 			break
 		} else if args[0] == "echo" {
 			for i := 1; i < len(args); i++ {
+				if i == len(args)-1 {
+					fmt.Printf("%s", args[i])
+					continue
+				}
 				fmt.Printf("%s ", args[i])
 			}
 			fmt.Printf("\n")
@@ -62,26 +104,55 @@ func main() {
 		} else if args[0] == "pwd" {
 			crdir, err := os.Getwd()
 			if err != nil {
-				fmt.Printf("%v\n", err)
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				continue
 			}
 			fmt.Printf("%s\n", crdir)
 
 		} else if args[0] == "cd" {
+			if len(args) <= 1 {
+				dir, err := os.UserHomeDir()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "%v\n", err)
+					continue
+				}
+				errCd := os.Chdir(dir)
+				if errCd != nil {
+					fmt.Fprintf(os.Stderr, "%v\n", errCd)
+				}
+				continue
+
+			}
 			if args[1] == "~" {
 				dir, err := os.UserHomeDir()
 				if err != nil {
-					fmt.Printf("%v\n", err)
+					fmt.Fprintf(os.Stderr, "%v\n", err)
+					continue
 				}
-				os.Chdir(dir)
+				errCd := os.Chdir(dir)
+				if errCd != nil {
+					fmt.Fprintf(os.Stderr, "%v\n", errCd)
+				}
 				continue
 
 			}
 			_, err := os.Stat(args[1])
-			if err != nil {
-				fmt.Printf("cd: %s: No such file or directory\n", args[1])
-			} else {
-				os.Chdir(args[1])
+			if errors.Is(err, fs.ErrNotExist) {
+				fmt.Fprintf(os.Stderr, "cd: %s: No such file or directory\n", args[1])
+				continue
+			} else if errors.Is(err, fs.ErrPermission) {
+				fmt.Fprintf(os.Stderr, "cd: %v: Permission denied\n", args[1])
+				continue
+			} else if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				continue
 			}
+
+			errCd := os.Chdir(args[1])
+			if errCd != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", errCd)
+			}
+
 		} else {
 			cmd := exec.Command(args[0], args[1:]...)
 			cmd.Stdin = os.Stdin
@@ -94,5 +165,8 @@ func main() {
 				fmt.Fprintln(os.Stderr, err)
 			}
 		}
+	}
+	if scanner.Err() != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", scanner.Err())
 	}
 }
