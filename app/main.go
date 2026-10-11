@@ -30,16 +30,19 @@ func main() {
 		backslash := 0
 		start := 0
 		for i := 0; i < len(fullText); i++ {
-			if fullText[i] == '\\' {
-				backslash = 1
-				continue
-			}
 
 			if backslash == 1 {
 				tempArg += fullText[i : i+1]
 				backslash = 0
+				start = 1
 				continue
 			}
+
+			if fullText[i] == '\\' && checkone == 0 && checktwo == 0 {
+				backslash = 1
+				continue
+			}
+
 			if fullText[i] == '\'' && checkone == 0 && checktwo == 0 {
 				checkone = 1
 				start = 1
