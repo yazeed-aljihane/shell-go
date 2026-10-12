@@ -29,6 +29,10 @@ func main() {
 		checktwo := 0
 		backslash := 0
 		start := 0
+		redirect := 0
+		hadQuoteOrEscape := false
+		output := os.Stdout
+		inx := 0
 		for i := 0; i < len(fullText); i++ {
 
 			if backslash == 1 {
@@ -37,20 +41,44 @@ func main() {
 				start = 1
 				continue
 			}
+			if fullText[i] == '>' && checkone == 0 && checktwo == 0 && start == 0 {
+				redirect = 1
+				inx = len(args)
+				args = append(args, fullText[i:i+1])
+				continue
+			}
+			if fullText[i] == '>' && checkone == 0 && checktwo == 0 && start == 1 {
+				start = 0
+				redirect = 1
+				if tempArg == "1" && !hadQuoteOrEscape {
+					tempArg = ""
+					inx = len(args)
+					args = append(args, fullText[i:i+1])
+				} else {
+					args = append(args, tempArg)
+					tempArg = ""
+					inx = len(args)
+					args = append(args, fullText[i:i+1])
+				}
+				continue
+			}
 
 			if fullText[i] == '\\' && checkone == 0 {
 				backslash = 1
+				hadQuoteOrEscape = true
 				continue
 			}
 
 			if fullText[i] == '\'' && checkone == 0 && checktwo == 0 {
 				checkone = 1
 				start = 1
+				hadQuoteOrEscape = true
 				continue
 			}
 			if fullText[i] == '"' && checktwo == 0 && checkone == 0 {
 				checktwo = 1
 				start = 1
+				hadQuoteOrEscape = true
 				continue
 			}
 
@@ -84,6 +112,7 @@ func main() {
 				args = append(args, tempArg)
 				tempArg = ""
 				start = 0
+				hadQuoteOrEscape = false
 				continue
 			}
 
@@ -94,24 +123,41 @@ func main() {
 		if len(args) == 0 {
 			continue
 		}
+		argLen := len(args)
+
+		if redirect == 1 {
+			if len(args) == inx+1 {
+				fmt.Fprintf(os.Stderr, "Error where the file?!\n")
+				continue
+			}
+			f, err := os.OpenFile(args[inx+1], os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0o644)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				continue
+			}
+			output = f
+			argLen = len(args[0:inx])
+		}
+
 		if args[0] == "exit" {
 			break
 		} else if args[0] == "echo" {
-			for i := 1; i < len(args); i++ {
-				if i == len(args)-1 {
-					fmt.Printf("%s", args[i])
+
+			for i := 1; i < argLen; i++ {
+				if i == argLen-1 {
+					fmt.Fprintf(output, "%s", args[i])
 					continue
 				}
-				fmt.Printf("%s ", args[i])
+				fmt.Fprintf(output, "%s ", args[i])
 			}
-			fmt.Printf("\n")
+			fmt.Fprintf(output, "\n")
 		} else if args[0] == "type" {
-			if len(args) <= 1 || len(args) > 2 {
-				fmt.Printf("wrong use to type command\n")
+			if argLen <= 1 || argLen > 2 {
+				fmt.Fprintf(output, "wrong use to type command\n")
 				continue
 			}
 			if args[1] == "echo" || args[1] == "type" || args[1] == "exit" || args[1] == "pwd" || args[1] == "cd" {
-				fmt.Printf("%s is a shell builtin\n", args[1])
+				fmt.Fprintf(output, "%s is a shell builtin\n", args[1])
 			} else {
 				dirs := filepath.SplitList(os.Getenv("PATH"))
 				check := 0
@@ -122,13 +168,13 @@ func main() {
 						continue
 					}
 					if !fileInfo.IsDir() && fileInfo.Mode().Perm()&0o111 != 0 {
-						fmt.Printf("%s is %s\n", args[1], filePath)
+						fmt.Fprintf(output, "%s is %s\n", args[1], filePath)
 						check = 1
 						break
 					}
 				}
 				if check == 0 {
-					fmt.Printf("%s: not found\n", args[1])
+					fmt.Fprintf(output, "%s: not found\n", args[1])
 				}
 
 			}
@@ -138,10 +184,10 @@ func main() {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				continue
 			}
-			fmt.Printf("%s\n", crdir)
+			fmt.Fprintf(output, "%s\n", crdir)
 
 		} else if args[0] == "cd" {
-			if len(args) <= 1 {
+			if argLen <= 1 {
 				dir, err := os.UserHomeDir()
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "%v\n", err)
@@ -158,11 +204,17 @@ func main() {
 				dir, err := os.UserHomeDir()
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "%v\n", err)
+					if redirect == 1 {
+						output.Close()
+					}
 					continue
 				}
 				errCd := os.Chdir(dir)
 				if errCd != nil {
 					fmt.Fprintf(os.Stderr, "%v\n", errCd)
+				}
+				if redirect == 1 {
+					output.Close()
 				}
 				continue
 
@@ -170,12 +222,21 @@ func main() {
 			_, err := os.Stat(args[1])
 			if errors.Is(err, fs.ErrNotExist) {
 				fmt.Fprintf(os.Stderr, "cd: %s: No such file or directory\n", args[1])
+				if redirect == 1 {
+					output.Close()
+				}
 				continue
 			} else if errors.Is(err, fs.ErrPermission) {
 				fmt.Fprintf(os.Stderr, "cd: %v: Permission denied\n", args[1])
+				if redirect == 1 {
+					output.Close()
+				}
 				continue
 			} else if err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
+				if redirect == 1 {
+					output.Close()
+				}
 				continue
 			}
 
@@ -185,16 +246,24 @@ func main() {
 			}
 
 		} else {
-			cmd := exec.Command(args[0], args[1:]...)
+			var cmd *exec.Cmd
+			if redirect == 1 {
+				cmd = exec.Command(args[0], args[1:inx]...)
+			} else {
+				cmd = exec.Command(args[0], args[1:]...)
+			}
 			cmd.Stdin = os.Stdin
-			cmd.Stdout = os.Stdout
+			cmd.Stdout = output
 			cmd.Stderr = os.Stderr
 			err := cmd.Run()
 			if errors.Is(err, exec.ErrNotFound) {
-				fmt.Printf("%s: command not found\n", args[0])
+				fmt.Fprintf(os.Stderr, "%s: command not found\n", args[0])
 			} else if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 			}
+		}
+		if redirect == 1 {
+			output.Close()
 		}
 	}
 	if scanner.Err() != nil {
