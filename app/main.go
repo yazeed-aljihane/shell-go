@@ -30,8 +30,10 @@ func main() {
 		backslash := 0
 		start := 0
 		redirect := 0
+		redirecterr := 0
 		hadQuoteOrEscape := false
 		output := os.Stdout
+		outputerr := os.Stderr
 		inx := 0
 		for i := 0; i < len(fullText); i++ {
 
@@ -52,6 +54,11 @@ func main() {
 				redirect = 1
 				if tempArg == "1" && !hadQuoteOrEscape {
 					tempArg = ""
+					inx = len(args)
+					args = append(args, fullText[i:i+1])
+				} else if tempArg == "2" && !hadQuoteOrEscape {
+					tempArg = ""
+					redirecterr = 1
 					inx = len(args)
 					args = append(args, fullText[i:i+1])
 				} else {
@@ -135,7 +142,11 @@ func main() {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				continue
 			}
-			output = f
+			if redirecterr == 1 {
+				outputerr = f
+			} else {
+				output = f
+			}
 			argLen = len(args[0:inx])
 		}
 
@@ -254,7 +265,7 @@ func main() {
 			}
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = output
-			cmd.Stderr = os.Stderr
+			cmd.Stderr = outputerr
 			err := cmd.Run()
 			if errors.Is(err, exec.ErrNotFound) {
 				fmt.Fprintf(os.Stderr, "%s: command not found\n", args[0])
