@@ -259,7 +259,12 @@ func main() {
 			if errors.Is(err, exec.ErrNotFound) {
 				fmt.Fprintf(os.Stderr, "%s: command not found\n", args[0])
 			} else if err != nil {
-				fmt.Fprintln(os.Stderr, err)
+				var exitErr *exec.ExitError
+				if errors.As(err, &exitErr) {
+					continue
+				} else {
+					fmt.Fprintln(os.Stderr, err)
+				}
 			}
 		}
 		if redirect == 1 {
