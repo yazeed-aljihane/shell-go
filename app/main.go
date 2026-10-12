@@ -8,281 +8,237 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
-// Ensures gofmt doesn't remove the "fmt" import in stage 1 (feel free to remove this!)
-var _ = fmt.Print
+type redirectKind int
+
+const (
+	noRedirect redirectKind = iota
+	redirectStdout
+	redirectStderr
+)
+
+type parsed struct {
+	args   []string
+	kind   redirectKind
+	target string
+}
+
+func parseLine(line string) (parsed, error) {
+	var p parsed
+	tempArg := ""
+	inSingle, inDouble := false, false
+	escaped := false
+	start := false
+	wantFile := false
+	hadQuoteOrEscape := false
+
+	flush := func() {
+		if wantFile {
+			p.target = tempArg
+			wantFile = false
+		} else {
+			p.args = append(p.args, tempArg)
+		}
+		tempArg = ""
+		start = false
+		hadQuoteOrEscape = false
+	}
+
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+
+		if escaped {
+			tempArg += string(c)
+			escaped = false
+			start = true
+			continue
+		}
+
+		if c == '>' && !inSingle && !inDouble {
+			if wantFile {
+				return p, errors.New("syntax error near unexpected token `>'")
+			}
+			if start {
+				switch {
+				case tempArg == "2" && !hadQuoteOrEscape:
+					p.kind = redirectStderr
+				case tempArg == "1" && !hadQuoteOrEscape:
+					p.kind = redirectStdout
+				default:
+					p.args = append(p.args, tempArg)
+					p.kind = redirectStdout
+				}
+				tempArg = ""
+				start = false
+				hadQuoteOrEscape = false
+			} else {
+				p.kind = redirectStdout
+			}
+			wantFile = true
+			continue
+		}
+
+		if c == '\\' && !inSingle {
+			escaped = true
+			hadQuoteOrEscape = true
+			continue
+		}
+		if c == '\'' && !inDouble {
+			inSingle = !inSingle
+			start = true
+			hadQuoteOrEscape = true
+			continue
+		}
+		if c == '"' && !inSingle {
+			inDouble = !inDouble
+			start = true
+			hadQuoteOrEscape = true
+			continue
+		}
+		if inSingle || inDouble {
+			tempArg += string(c)
+			continue
+		}
+		if c == ' ' || c == '\t' {
+			if start {
+				flush()
+			}
+			continue
+		}
+		tempArg += string(c)
+		start = true
+	}
+
+	if start {
+		flush()
+	}
+	if wantFile {
+		return p, errors.New("syntax error: missing redirect target")
+	}
+	return p, nil
+}
+
+func runCommand(p parsed) bool {
+	args := p.args
+	if len(args) == 0 {
+		return false
+	}
+
+	stdout, stderr := os.Stdout, os.Stderr
+	if p.kind != noRedirect {
+		f, err := os.OpenFile(p.target, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0o644)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return false
+		}
+		defer f.Close()
+		if p.kind == redirectStderr {
+			stderr = f
+		} else {
+			stdout = f
+		}
+	}
+
+	switch args[0] {
+	case "exit":
+		return true
+
+	case "echo":
+		fmt.Fprintln(stdout, strings.Join(args[1:], " "))
+
+	case "type":
+		if len(args) != 2 {
+			fmt.Fprintln(stdout, "wrong use to type command")
+			return false
+		}
+		switch args[1] {
+		case "echo", "type", "exit", "pwd", "cd":
+			fmt.Fprintf(stdout, "%s is a shell builtin\n", args[1])
+		default:
+			found := false
+			for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+				path := filepath.Join(dir, args[1])
+				info, err := os.Stat(path)
+				if err != nil {
+					continue
+				}
+				if !info.IsDir() && info.Mode().Perm()&0o111 != 0 {
+					fmt.Fprintf(stdout, "%s is %s\n", args[1], path)
+					found = true
+					break
+				}
+			}
+			if !found {
+				fmt.Fprintf(stdout, "%s: not found\n", args[1])
+			}
+		}
+
+	case "pwd":
+		dir, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return false
+		}
+		fmt.Fprintln(stdout, dir)
+
+	case "cd":
+		dir := ""
+		if len(args) <= 1 || args[1] == "~" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				fmt.Fprintln(stderr, err)
+				return false
+			}
+			dir = home
+		} else {
+			dir = args[1]
+		}
+		if err := os.Chdir(dir); err != nil {
+			switch {
+			case errors.Is(err, fs.ErrNotExist):
+				fmt.Fprintf(stderr, "cd: %s: No such file or directory\n", dir)
+			case errors.Is(err, fs.ErrPermission):
+				fmt.Fprintf(stderr, "cd: %s: Permission denied\n", dir)
+			default:
+				fmt.Fprintln(stderr, err)
+			}
+		}
+
+	default:
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
+		err := cmd.Run()
+		var exitErr *exec.ExitError
+		if errors.Is(err, exec.ErrNotFound) {
+			fmt.Fprintf(stderr, "%s: command not found\n", args[0])
+		} else if err != nil && !errors.As(err, &exitErr) {
+			fmt.Fprintln(stderr, err)
+		}
+	}
+	return false
+}
 
 func main() {
-	// TODO: Uncomment the code below to pass the first stage
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		fmt.Printf("$ ")
+		fmt.Print("$ ")
 		if !scanner.Scan() {
 			break
 		}
-
-		args := []string{}
-		fullText := scanner.Text()
-		tempArg := ""
-		checkone := 0
-		checktwo := 0
-		backslash := 0
-		start := 0
-		redirect := 0
-		redirecterr := 0
-		hadQuoteOrEscape := false
-		output := os.Stdout
-		outputerr := os.Stderr
-		inx := 0
-		for i := 0; i < len(fullText); i++ {
-
-			if backslash == 1 {
-				tempArg += fullText[i : i+1]
-				backslash = 0
-				start = 1
-				continue
-			}
-			if fullText[i] == '>' && checkone == 0 && checktwo == 0 && start == 0 {
-				redirect = 1
-				inx = len(args)
-				args = append(args, fullText[i:i+1])
-				continue
-			}
-			if fullText[i] == '>' && checkone == 0 && checktwo == 0 && start == 1 {
-				start = 0
-				redirect = 1
-				if tempArg == "1" && !hadQuoteOrEscape {
-					tempArg = ""
-					inx = len(args)
-					args = append(args, fullText[i:i+1])
-				} else if tempArg == "2" && !hadQuoteOrEscape {
-					tempArg = ""
-					redirecterr = 1
-					inx = len(args)
-					args = append(args, fullText[i:i+1])
-				} else {
-					args = append(args, tempArg)
-					tempArg = ""
-					inx = len(args)
-					args = append(args, fullText[i:i+1])
-				}
-				continue
-			}
-
-			if fullText[i] == '\\' && checkone == 0 {
-				backslash = 1
-				hadQuoteOrEscape = true
-				continue
-			}
-
-			if fullText[i] == '\'' && checkone == 0 && checktwo == 0 {
-				checkone = 1
-				start = 1
-				hadQuoteOrEscape = true
-				continue
-			}
-			if fullText[i] == '"' && checktwo == 0 && checkone == 0 {
-				checktwo = 1
-				start = 1
-				hadQuoteOrEscape = true
-				continue
-			}
-
-			if fullText[i] == '\'' && checkone == 1 && checktwo == 0 {
-				checkone = 0
-				continue
-			}
-
-			if fullText[i] == '"' && checktwo == 1 && checkone == 0 {
-				checktwo = 0
-				continue
-			}
-
-			if checktwo == 1 {
-				tempArg += fullText[i : i+1]
-				continue
-			}
-
-			if checkone == 1 {
-				tempArg += fullText[i : i+1]
-				continue
-			}
-			if (fullText[i] == ' ' || fullText[i] == '	') && start == 0 {
-				continue
-			}
-			if fullText[i] != ' ' && fullText[i] != '	' {
-				tempArg += fullText[i : i+1]
-				start = 1
-			}
-			if checkone == 0 && (fullText[i] == ' ' || fullText[i] == '	') && start == 1 {
-				args = append(args, tempArg)
-				tempArg = ""
-				start = 0
-				hadQuoteOrEscape = false
-				continue
-			}
-
-		}
-		if start == 1 {
-			args = append(args, tempArg)
-		}
-		if len(args) == 0 {
+		p, err := parseLine(scanner.Text())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
 			continue
 		}
-		argLen := len(args)
-
-		if redirect == 1 {
-			if len(args) == inx+1 {
-				fmt.Fprintf(os.Stderr, "Error where the file?!\n")
-				continue
-			}
-			f, err := os.OpenFile(args[inx+1], os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0o644)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
-				continue
-			}
-			if redirecterr == 1 {
-				outputerr = f
-			} else {
-				output = f
-			}
-			argLen = len(args[0:inx])
-		}
-
-		if args[0] == "exit" {
+		if runCommand(p) {
 			break
-		} else if args[0] == "echo" {
-
-			for i := 1; i < argLen; i++ {
-				if i == argLen-1 {
-					fmt.Fprintf(output, "%s", args[i])
-					continue
-				}
-				fmt.Fprintf(output, "%s ", args[i])
-			}
-			fmt.Fprintf(output, "\n")
-		} else if args[0] == "type" {
-			if argLen <= 1 || argLen > 2 {
-				fmt.Fprintf(output, "wrong use to type command\n")
-				continue
-			}
-			if args[1] == "echo" || args[1] == "type" || args[1] == "exit" || args[1] == "pwd" || args[1] == "cd" {
-				fmt.Fprintf(output, "%s is a shell builtin\n", args[1])
-			} else {
-				dirs := filepath.SplitList(os.Getenv("PATH"))
-				check := 0
-				for i := 0; i < len(dirs); i++ {
-					filePath := filepath.Join(dirs[i], args[1])
-					fileInfo, err := os.Stat(filePath)
-					if err != nil {
-						continue
-					}
-					if !fileInfo.IsDir() && fileInfo.Mode().Perm()&0o111 != 0 {
-						fmt.Fprintf(output, "%s is %s\n", args[1], filePath)
-						check = 1
-						break
-					}
-				}
-				if check == 0 {
-					fmt.Fprintf(output, "%s: not found\n", args[1])
-				}
-
-			}
-		} else if args[0] == "pwd" {
-			crdir, err := os.Getwd()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
-				continue
-			}
-			fmt.Fprintf(output, "%s\n", crdir)
-
-		} else if args[0] == "cd" {
-			if argLen <= 1 {
-				dir, err := os.UserHomeDir()
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "%v\n", err)
-					continue
-				}
-				errCd := os.Chdir(dir)
-				if errCd != nil {
-					fmt.Fprintf(os.Stderr, "%v\n", errCd)
-				}
-				continue
-
-			}
-			if args[1] == "~" {
-				dir, err := os.UserHomeDir()
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "%v\n", err)
-					if redirect == 1 {
-						output.Close()
-					}
-					continue
-				}
-				errCd := os.Chdir(dir)
-				if errCd != nil {
-					fmt.Fprintf(os.Stderr, "%v\n", errCd)
-				}
-				if redirect == 1 {
-					output.Close()
-				}
-				continue
-
-			}
-			_, err := os.Stat(args[1])
-			if errors.Is(err, fs.ErrNotExist) {
-				fmt.Fprintf(os.Stderr, "cd: %s: No such file or directory\n", args[1])
-				if redirect == 1 {
-					output.Close()
-				}
-				continue
-			} else if errors.Is(err, fs.ErrPermission) {
-				fmt.Fprintf(os.Stderr, "cd: %v: Permission denied\n", args[1])
-				if redirect == 1 {
-					output.Close()
-				}
-				continue
-			} else if err != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
-				if redirect == 1 {
-					output.Close()
-				}
-				continue
-			}
-
-			errCd := os.Chdir(args[1])
-			if errCd != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", errCd)
-			}
-
-		} else {
-			var cmd *exec.Cmd
-			if redirect == 1 {
-				cmd = exec.Command(args[0], args[1:inx]...)
-			} else {
-				cmd = exec.Command(args[0], args[1:]...)
-			}
-			cmd.Stdin = os.Stdin
-			cmd.Stdout = output
-			cmd.Stderr = outputerr
-			err := cmd.Run()
-			if errors.Is(err, exec.ErrNotFound) {
-				fmt.Fprintf(os.Stderr, "%s: command not found\n", args[0])
-			} else if err != nil {
-				var exitErr *exec.ExitError
-				if errors.As(err, &exitErr) {
-					continue
-				} else {
-					fmt.Fprintln(os.Stderr, err)
-				}
-			}
-		}
-		if redirect == 1 {
-			output.Close()
 		}
 	}
-	if scanner.Err() != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", scanner.Err())
+	if err := scanner.Err(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
 	}
 }
