@@ -10,6 +10,15 @@ import (
 	"strings"
 )
 
+type process struct {
+	id      int
+	pid     int
+	command string
+	status  string
+}
+
+var Process = []process{}
+
 func runCommand(p parsed) bool {
 	args := p.args
 	if len(args) == 0 {
@@ -102,7 +111,9 @@ func runCommand(p parsed) bool {
 			}
 		}
 	case "jobs":
-		fmt.Printf("")
+		for i := 0; i < len(Process); i++ {
+			fmt.Printf("[%v]+  %v                 %v&\n", Process[i].id, Process[i].status, Process[i].command)
+		}
 
 	default:
 
@@ -112,9 +123,19 @@ func runCommand(p parsed) bool {
 		cmd.Stderr = stderr
 
 		if p.background {
+			var prc process
 			cmd.Start()
-			Pid := cmd.Process.Pid
-			fmt.Printf("[1] %v\n", Pid)
+			prc.pid = cmd.Process.Pid
+			prc.command = args[0]
+			if len(Process) == 0 {
+				prc.id = 1
+			} else {
+				prc.id = Process[len(Process)-1].id + 1
+			}
+			prc.status = "Running"
+			Process = append(Process, prc)
+
+			fmt.Printf("[%v] %v\n", prc.id, prc.pid)
 		} else {
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = stdout
