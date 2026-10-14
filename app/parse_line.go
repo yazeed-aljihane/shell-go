@@ -11,10 +11,11 @@ const (
 )
 
 type parsed struct {
-	args    []string
-	kind    redirectKind
-	appends bool
-	target  string
+	args       []string
+	kind       redirectKind
+	background bool
+	appends    bool
+	target     string
 }
 
 func parseLine(line string) (parsed, error) {
@@ -72,6 +73,11 @@ func parseLine(line string) (parsed, error) {
 				i++
 			}
 			wantFile = true
+			continue
+		}
+
+		if c == '&' && !inDouble && !inSingle && !start {
+			p.background = true
 			continue
 		}
 
