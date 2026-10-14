@@ -107,6 +107,10 @@ func runCommand(p parsed) bool {
 	default:
 
 		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = stdout
+		cmd.Stderr = stderr
+
 		if p.background {
 			cmd.Start()
 			Pid := cmd.Process.Pid
