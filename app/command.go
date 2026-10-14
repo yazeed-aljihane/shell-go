@@ -101,6 +101,8 @@ func runCommand(p parsed) bool {
 				fmt.Fprintln(stderr, err)
 			}
 		}
+	case "job":
+		fmt.Printf("")
 
 	default:
 		cmd := exec.Command(args[0], args[1:]...)
