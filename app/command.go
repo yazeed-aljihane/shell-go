@@ -112,7 +112,7 @@ func runCommand(p parsed) bool {
 		}
 	case "jobs":
 		for i := 0; i < len(Process); i++ {
-			fmt.Printf("[%v]+  %v                 %v&\n", Process[i].id, Process[i].status, Process[i].command)
+			fmt.Printf("[%v]+  %v                 %v %v&\n", Process[i].id, Process[i].status, Process[i].command, args[1])
 		}
 
 	default:
