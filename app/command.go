@@ -50,7 +50,7 @@ func runCommand(p parsed) bool {
 			return false
 		}
 		switch args[1] {
-		case "echo", "type", "exit", "pwd", "cd":
+		case "echo", "type", "exit", "pwd", "cd", "job":
 			fmt.Fprintf(stdout, "%s is a shell builtin\n", args[1])
 		default:
 			found := false
