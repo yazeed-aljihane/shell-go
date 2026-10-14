@@ -105,16 +105,23 @@ func runCommand(p parsed) bool {
 		fmt.Printf("")
 
 	default:
+
 		cmd := exec.Command(args[0], args[1:]...)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = stdout
-		cmd.Stderr = stderr
-		err := cmd.Run()
-		var exitErr *exec.ExitError
-		if errors.Is(err, exec.ErrNotFound) {
-			fmt.Fprintf(stderr, "%s: command not found\n", args[0])
-		} else if err != nil && !errors.As(err, &exitErr) {
-			fmt.Fprintln(stderr, err)
+		if p.background {
+			cmd.Start()
+			Pid := os.Getpid()
+			fmt.Printf("[1] %v\n", Pid)
+		} else {
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = stdout
+			cmd.Stderr = stderr
+			err := cmd.Run()
+			var exitErr *exec.ExitError
+			if errors.Is(err, exec.ErrNotFound) {
+				fmt.Fprintf(stderr, "%s: command not found\n", args[0])
+			} else if err != nil && !errors.As(err, &exitErr) {
+				fmt.Fprintln(stderr, err)
+			}
 		}
 	}
 	return false
