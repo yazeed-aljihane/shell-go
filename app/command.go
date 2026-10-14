@@ -109,7 +109,7 @@ func runCommand(p parsed) bool {
 		cmd := exec.Command(args[0], args[1:]...)
 		if p.background {
 			cmd.Start()
-			Pid := os.Getpid()
+			Pid := cmd.Process.Pid
 			fmt.Printf("[1] %v\n", Pid)
 		} else {
 			cmd.Stdin = os.Stdin
