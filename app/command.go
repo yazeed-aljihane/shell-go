@@ -112,12 +112,18 @@ func runCommand(p parsed) bool {
 		}
 	case "jobs":
 		for i := 0; i < len(Process); i++ {
-			if i == len(Process)-1 {
-				fmt.Printf("[%v]+  %v                 %v &\n", Process[i].id, Process[i].status, Process[i].command)
-			} else if i == len(Process)-2 {
-				fmt.Printf("[%v]-  %v                 %v &\n", Process[i].id, Process[i].status, Process[i].command)
+			c := ""
+			if Process[i].status == "Done" {
+				c = " "
 			} else {
-				fmt.Printf("[%v]   %v                 %v &\n", Process[i].id, Process[i].status, Process[i].command)
+				c = "&"
+			}
+			if i == len(Process)-1 {
+				fmt.Printf("[%v]+  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
+			} else if i == len(Process)-2 {
+				fmt.Printf("[%v]-  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
+			} else {
+				fmt.Printf("[%v]   %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
 			}
 		}
 
@@ -130,7 +136,20 @@ func runCommand(p parsed) bool {
 
 		if p.background {
 			var prc process
-			cmd.Start()
+			err := cmd.Start()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				return false
+			}
+			go func() {
+				err := cmd.Wait()
+				if err != nil {
+					prc.status = "Done"
+				} else {
+					prc.status = "Done"
+				}
+			}()
+
 			prc.pid = cmd.Process.Pid
 			prc.command = args[0] + " " + args[1]
 			if len(Process) == 0 {
