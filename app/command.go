@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 type process struct {
@@ -17,7 +18,8 @@ type process struct {
 	status  string
 }
 
-var Process = []process{}
+var Process = []*process{}
+var processMu sync.Mutex
 
 func runCommand(p parsed) bool {
 	args := p.args
@@ -111,6 +113,7 @@ func runCommand(p parsed) bool {
 			}
 		}
 	case "jobs":
+		processMu.Lock()
 		for i := 0; i < len(Process); i++ {
 			c := ""
 			if Process[i].status == "Done" {
@@ -125,7 +128,12 @@ func runCommand(p parsed) bool {
 			} else {
 				fmt.Printf("[%v]   %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
 			}
+			if Process[i].status == "Done" {
+				Process = append(Process[:i], Process[i+1:]...)
+				i--
+			}
 		}
+		processMu.Unlock()
 
 	default:
 
@@ -141,24 +149,24 @@ func runCommand(p parsed) bool {
 				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 				return false
 			}
-			go func() {
-				err := cmd.Wait()
-				if err != nil {
-					prc.status = "Done"
-				} else {
-					prc.status = "Done"
-				}
-			}()
-
 			prc.pid = cmd.Process.Pid
-			prc.command = args[0] + " " + args[1]
+			prc.command = strings.Join(args, " ")
+			prc.status = "Running"
+			processMu.Lock()
 			if len(Process) == 0 {
 				prc.id = 1
 			} else {
 				prc.id = Process[len(Process)-1].id + 1
 			}
-			prc.status = "Running"
-			Process = append(Process, prc)
+			Process = append(Process, &prc)
+			processMu.Unlock()
+
+			go func() {
+				_ = cmd.Wait()
+				processMu.Lock()
+				prc.status = "Done"
+				processMu.Unlock()
+			}()
 
 			fmt.Printf("[%v] %v\n", prc.id, prc.pid)
 		} else {
