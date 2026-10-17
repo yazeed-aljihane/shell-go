@@ -68,7 +68,10 @@ func runCommand(p parsed) bool {
 	if len(args) == 0 {
 		return false
 	}
-
+	if p.pipe {
+		runPipeline(p.commands)
+		return false
+	}
 	stdout, stderr := os.Stdout, os.Stderr
 	if p.kind != noRedirect {
 		flags := os.O_CREATE | os.O_WRONLY

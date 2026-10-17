@@ -1,6 +1,8 @@
 package main
 
-import "errors"
+import (
+	"errors"
+)
 
 type redirectKind int
 
@@ -12,10 +14,12 @@ const (
 
 type parsed struct {
 	args       []string
+	commands   [][]string
 	kind       redirectKind
 	background bool
 	appends    bool
 	target     string
+	pipe       bool
 }
 
 func parseLine(line string) (parsed, error) {
@@ -46,6 +50,18 @@ func parseLine(line string) (parsed, error) {
 			tempArg += string(c)
 			escaped = false
 			start = true
+			continue
+		}
+		if c == '|' && !inSingle && !inDouble {
+			if start {
+				flush()
+			}
+			if wantFile || len(p.args) == 0 || p.pipe {
+				return p, errors.New("syntax error: expected two commands around pipe")
+			}
+			p.pipe = true
+			p.commands = append(p.commands, p.args)
+			p.args = nil
 			continue
 		}
 		if c == '>' && !inSingle && !inDouble {
@@ -117,6 +133,12 @@ func parseLine(line string) (parsed, error) {
 	}
 	if wantFile {
 		return p, errors.New("syntax error: missing redirect target")
+	}
+	if p.pipe {
+		if len(p.args) == 0 {
+			return p, errors.New("syntax error: missing command after pipe")
+		}
+		p.commands = append(p.commands, p.args)
 	}
 	return p, nil
 }
