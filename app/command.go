@@ -23,25 +23,41 @@ var (
 	processMu sync.Mutex
 )
 
-func processMangemnt() {
+func processMangemnt(state int) {
 	processMu.Lock()
-	for i := 0; i < len(Process); i++ {
-		c := ""
-		if Process[i].status == "Done" {
-			c = " "
-		} else {
-			c = "&"
+	if state == 1 {
+		for i := 0; i < len(Process); i++ {
+			c := ""
+			if Process[i].status == "Done" {
+				c = " "
+			} else {
+				c = "&"
+			}
+			if i == len(Process)-1 {
+				fmt.Printf("[%v]+  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
+			} else if i == len(Process)-2 {
+				fmt.Printf("[%v]-  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
+			} else {
+				fmt.Printf("[%v]   %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
+			}
+			if Process[i].status == "Done" {
+				Process = append(Process[:i], Process[i+1:]...)
+				i--
+			}
 		}
-		if i == len(Process)-1 {
-			fmt.Printf("[%v]+  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
-		} else if i == len(Process)-2 {
-			fmt.Printf("[%v]-  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
-		} else {
-			fmt.Printf("[%v]   %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
-		}
-		if Process[i].status == "Done" {
-			Process = append(Process[:i], Process[i+1:]...)
-			i--
+	} else {
+		for i := 0; i < len(Process); i++ {
+			if Process[i].status == "Done" {
+				if i == len(Process)-1 {
+					fmt.Printf("[%v]+  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command)
+				} else if i == len(Process)-2 {
+					fmt.Printf("[%v]-  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command)
+				} else {
+					fmt.Printf("[%v]  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command)
+				}
+				Process = append(Process[:i], Process[i+1:]...)
+				i--
+			}
 		}
 	}
 	processMu.Unlock()
@@ -139,7 +155,7 @@ func runCommand(p parsed) bool {
 			}
 		}
 	case "jobs":
-		processMangemnt()
+		processMangemnt(1)
 
 	default:
 

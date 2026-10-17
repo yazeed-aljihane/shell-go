@@ -9,7 +9,7 @@ import (
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
-		processMangemnt()
+		processMangemnt(0)
 		fmt.Print("$ ")
 		if !scanner.Scan() {
 			break
