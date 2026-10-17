@@ -18,8 +18,34 @@ type process struct {
 	status  string
 }
 
-var Process = []*process{}
-var processMu sync.Mutex
+var (
+	Process   = []*process{}
+	processMu sync.Mutex
+)
+
+func processMangemnt() {
+	processMu.Lock()
+	for i := 0; i < len(Process); i++ {
+		c := ""
+		if Process[i].status == "Done" {
+			c = " "
+		} else {
+			c = "&"
+		}
+		if i == len(Process)-1 {
+			fmt.Printf("[%v]+  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
+		} else if i == len(Process)-2 {
+			fmt.Printf("[%v]-  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
+		} else {
+			fmt.Printf("[%v]   %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
+		}
+		if Process[i].status == "Done" {
+			Process = append(Process[:i], Process[i+1:]...)
+			i--
+		}
+	}
+	processMu.Unlock()
+}
 
 func runCommand(p parsed) bool {
 	args := p.args
@@ -113,27 +139,7 @@ func runCommand(p parsed) bool {
 			}
 		}
 	case "jobs":
-		processMu.Lock()
-		for i := 0; i < len(Process); i++ {
-			c := ""
-			if Process[i].status == "Done" {
-				c = " "
-			} else {
-				c = "&"
-			}
-			if i == len(Process)-1 {
-				fmt.Printf("[%v]+  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
-			} else if i == len(Process)-2 {
-				fmt.Printf("[%v]-  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
-			} else {
-				fmt.Printf("[%v]   %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command, c)
-			}
-			if Process[i].status == "Done" {
-				Process = append(Process[:i], Process[i+1:]...)
-				i--
-			}
-		}
-		processMu.Unlock()
+		processMangemnt()
 
 	default:
 
