@@ -49,11 +49,11 @@ func processMangemnt(state int) {
 		for i := 0; i < len(Process); i++ {
 			if Process[i].status == "Done" {
 				if i == len(Process)-1 {
-					fmt.Printf("[%v]+  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command)
+					fmt.Printf("[%v]+  %v                 %v \n", Process[i].id, Process[i].status, Process[i].command)
 				} else if i == len(Process)-2 {
-					fmt.Printf("[%v]-  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command)
+					fmt.Printf("[%v]-  %v                 %v \n", Process[i].id, Process[i].status, Process[i].command)
 				} else {
-					fmt.Printf("[%v]  %v                 %v %v\n", Process[i].id, Process[i].status, Process[i].command)
+					fmt.Printf("[%v]  %v                 %v \n", Process[i].id, Process[i].status, Process[i].command)
 				}
 				Process = append(Process[:i], Process[i+1:]...)
 				i--
